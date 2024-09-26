@@ -16,18 +16,24 @@ import axios from "../../utils/axiosConfig";
 export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
   const [ventas, setVentas] = useState([]);
   const [selectedVentas, setSelectedVentas] = useState([]);
-  const [productionDetails, setProductionDetails] = useState([]);
+  const [productionDetails, setProductionDetails] = useState({});
   const [ventasAsociadas, setVentasAsociadas] = useState([]);
   const [ventasAsociadasActuales, setVentasAsociadasActuales] = useState([]);
-  const [dataLoaded, setDataLoaded] = useState(false); // Estado para manejar la carga de datos
-  const [ventasFiltradas, setVentasFiltradas] = useState([]); // Estado para ventas filtradas
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [ventasFiltradas, setVentasFiltradas] = useState([]);
+  const [productos, setProductos] = useState({});
+  const [totalProductosEnProduccion, setTotalProductosEnProduccion] = useState(0); // Total productos en estado 2
+
+  const LIMITE_PRODUCCION = 2000; // Límite de productos por día
 
   useEffect(() => {
     if (open) {
       setSelectedVentas([]);
-      setProductionDetails([]);
+      setProductionDetails({});
       setDataLoaded(false);
       fetchVentas();
+      fetchProductos();
+      fetchTotalProductosEnProduccion(); // Obtener el total de productos actuales
     }
   }, [open]);
 
@@ -54,6 +60,38 @@ export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
     }
   };
 
+  const fetchProductos = async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/productos");
+      const productosMap = {};
+      response.data.forEach(producto => {
+        productosMap[producto.id_producto] = producto.nombre;
+      });
+      setProductos(productosMap);
+    } catch (error) {
+      console.error("Error fetching productos:", error);
+    }
+  };
+
+  const fetchTotalProductosEnProduccion = async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/ordenesproduccion?estado=2");
+      const ordenesProduccion = response.data;
+
+      const totalProductos = ordenesProduccion.reduce((total, orden) => {
+        if (orden.ordenProduccionDetalles && Array.isArray(orden.ordenProduccionDetalles)) {
+          const totalProductosOrden = orden.ordenProduccionDetalles.reduce((subtotal, detalle) => subtotal + detalle.cantidad, 0);
+          return total + totalProductosOrden;
+        }
+        return total;
+      }, 0);
+
+      setTotalProductosEnProduccion(totalProductos);
+    } catch (error) {
+      console.error("Error fetching total de productos en producción:", error);
+    }
+  };
+
   const fetchVentasAsociadas = async () => {
     try {
       const response = await axios.get("http://localhost:3000/api/ordenesproduccion/todas_ventas_asociadas");
@@ -64,50 +102,42 @@ export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
     }
   };
 
-  const obtenerNombreProducto = async (id_producto) => {
-    try {
-      const response = await axios.get(`http://localhost:3000/api/productos/${id_producto}`);
-      return response.data.nombre; // Asegúrate de que la API de productos devuelva el nombre
-    } catch (error) {
-      console.error("Error fetching product name:", error);
-      return `Producto ${id_producto}`; // Fallback si no se encuentra el producto
-    }
-  };
-  
   const loadOrderDetails = async () => {
     try {
       const response = await axios.get(`http://localhost:3000/api/ordenesproduccion/${orden.id_orden}/ventas_asociadas`);
       const ventasAsociadas = response.data.map(venta => venta.numero_venta);
       setSelectedVentas(ventasAsociadas);
       setVentasAsociadasActuales(ventasAsociadas);
-  
-      const detallesProduccion = await Promise.all(
-        ventasAsociadas.flatMap(async numero_venta => {
-          const venta = ventas.find(v => v.numero_venta === numero_venta);
-          if (venta) {
-            return await Promise.all(venta.detalles.map(async detalle => ({
-              id_producto: detalle.id_producto,
-              cantidad: detalle.cantidad,
-              nombre: await obtenerNombreProducto(detalle.id_producto), // Llamar a la API para obtener el nombre
-            })));
-          }
-          return [];
-        })
-      );
-  
-      setProductionDetails(detallesProduccion.flat());
-      setDataLoaded(true); // Marcar los datos como cargados
+
+      const detallesProduccion = {};
+      for (const numero_venta of ventasAsociadas) {
+        const venta = ventas.find(v => v.numero_venta === numero_venta);
+        if (venta) {
+          venta.detalles.forEach(detalle => {
+            if (detallesProduccion[detalle.id_producto]) {
+              detallesProduccion[detalle.id_producto].cantidad += detalle.cantidad;
+            } else {
+              detallesProduccion[detalle.id_producto] = {
+                nombre: productos[detalle.id_producto] || `Producto ${detalle.id_producto}`,
+                cantidad: detalle.cantidad,
+              };
+            }
+          });
+        }
+      }
+
+      setProductionDetails(detallesProduccion);
+      setDataLoaded(true);
     } catch (error) {
       console.error("Error loading order details:", error);
     }
   };
-  
 
   const aplicarFiltradoDeVentas = () => {
     const filtradas = ventas.filter(venta =>
       !ventasAsociadas.includes(venta.numero_venta) || ventasAsociadasActuales.includes(venta.numero_venta)
     );
-    setVentasFiltradas(filtradas); // Aplicar el filtrado de ventas
+    setVentasFiltradas(filtradas);
   };
 
   const handleVentaChange = (numero_venta, isChecked) => {
@@ -118,60 +148,61 @@ export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
       return;
     }
 
-    const detallesVenta = venta.detalles.map(detalle => ({
-      id_producto: detalle.id_producto,
-      cantidad: detalle.cantidad,
-      nombre: detalle.nombre || `Producto ${detalle.id_producto}`,
-    }));
-
     if (isChecked) {
-      agregarProductos(detallesVenta);
-      setSelectedVentas(prevState => [...prevState, numero_venta]);
+      setSelectedVentas([...selectedVentas, numero_venta]);
+
+      const nuevosDetalles = { ...productionDetails };
+      venta.detalles.forEach(detalle => {
+        if (nuevosDetalles[detalle.id_producto]) {
+          nuevosDetalles[detalle.id_producto].cantidad += detalle.cantidad;
+        } else {
+          nuevosDetalles[detalle.id_producto] = {
+            nombre: productos[detalle.id_producto] || `Producto ${detalle.id_producto}`,
+            cantidad: detalle.cantidad,
+          };
+        }
+      });
+
+      setProductionDetails(nuevosDetalles);
     } else {
-      quitarProductos(detallesVenta);
-      setSelectedVentas(prevState => prevState.filter(num => num !== numero_venta));
+      const nuevasVentasSeleccionadas = selectedVentas.filter(num => num !== numero_venta);
+      setSelectedVentas(nuevasVentasSeleccionadas);
+
+      const nuevosDetalles = { ...productionDetails };
+      venta.detalles.forEach(detalle => {
+        if (nuevosDetalles[detalle.id_producto]) {
+          nuevosDetalles[detalle.id_producto].cantidad -= detalle.cantidad;
+          if (nuevosDetalles[detalle.id_producto].cantidad <= 0) {
+            delete nuevosDetalles[detalle.id_producto];
+          }
+        }
+      });
+
+      setProductionDetails(nuevosDetalles);
     }
   };
 
-  const agregarProductos = (productos) => {
-    const nuevosDetalles = [...productionDetails];
-
-    productos.forEach((detalle) => {
-      const existingDetail = nuevosDetalles.find(d => d.id_producto === detalle.id_producto);
-      if (existingDetail) {
-        existingDetail.cantidad += detalle.cantidad;
-      } else {
-        nuevosDetalles.push(detalle);
-      }
-    });
-
-    setProductionDetails(nuevosDetalles);
-  };
-
-  const quitarProductos = (productos) => {
-    const nuevosDetalles = [...productionDetails];
-
-    productos.forEach((detalle) => {
-      const existingDetail = nuevosDetalles.find(d => d.id_producto === detalle.id_producto);
-      if (existingDetail) {
-        existingDetail.cantidad -= detalle.cantidad;
-        if (existingDetail.cantidad <= 0) {
-          const index = nuevosDetalles.indexOf(existingDetail);
-          if (index > -1) {
-            nuevosDetalles.splice(index, 1);
-          }
-        }
-      }
-    });
-
-    setProductionDetails(nuevosDetalles);
-  };
-
   const handleUpdateProductionSave = async () => {
+    // Calcular el total de productos de la orden editada
+    const totalProductosNuevaOrden = Object.values(productionDetails).reduce((total, detalle) => total + detalle.cantidad, 0);
+
+    // Calcular productos restantes para llegar al límite
+    const productosRestantes = LIMITE_PRODUCCION - totalProductosEnProduccion;
+
+    // Verificar si se supera el límite de capacidad
+    if (totalProductosNuevaOrden > productosRestantes) {
+      Swal.fire({
+        icon: "error",
+        title: "Capacidad excedida",
+        text: `No se puede actualizar la orden de producción porque se excedería el límite de ${LIMITE_PRODUCCION} productos por día. Puedes agregar un máximo de ${productosRestantes} productos.`,
+      });
+      return; // No continuar con la actualización de la orden
+    }
+
     const updatedOrder = {
       fecha_orden: new Date().toISOString().split('T')[0],
-      productos: productionDetails.map(detalle => ({
-        id_producto: detalle.id_producto,
+      productos: Object.entries(productionDetails).map(([id_producto, detalle]) => ({
+        id_producto: parseInt(id_producto),
         cantidad: detalle.cantidad,
       })),
       numero_ventas: selectedVentas,
@@ -236,8 +267,8 @@ export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
             Resumen de Producción
           </Typography>
           <ul className="list-disc pl-4 text-sm">
-            {productionDetails.map((detalle, index) => (
-              <li key={index} className="mb-2">
+            {Object.entries(productionDetails).map(([id_producto, detalle]) => (
+              <li key={id_producto} className="mb-2">
                 {detalle.nombre}: {detalle.cantidad}
               </li>
             ))}

@@ -254,7 +254,7 @@ export function Pedidos() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Anular</th>
                         <th className="px-10 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actualizar Estado</th>
+                      
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -298,17 +298,7 @@ export function Pedidos() {
                               </IconButton>
                             </div>
                           </td>
-                          <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
-                            <IconButton
-                              className="btnupdate"
-                              size="sm"
-                              color="blue-gray"
-                              onClick={() => handleEstadoOpen(pedido)}
-                              disabled={pedido.id_estado === 5 || pedido.estado === "Completado"}
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                            </IconButton>
-                          </td>
+                          
                         </tr>
                       ))}
                     </tbody>

@@ -136,7 +136,7 @@ export function CrearVenta({ clientes, productos, fetchVentas, onCancel }) {
         newErrors[`cantidad_${index}`] = "La cantidad es obligatoria";
       }
     });
-
+  
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       Swal.fire({
@@ -146,7 +146,28 @@ export function CrearVenta({ clientes, productos, fetchVentas, onCancel }) {
       });
       return;
     }
-
+  
+    // Nueva lógica para verificar si la cantidad total de productos vendidos en la fecha supera el límite
+    const fechaEntrega = selectedVenta.fecha_entrega;
+    const cantidadTotalEnFecha = pedidos
+      .filter(pedido => pedido.fecha_entrega.split('T')[0] === fechaEntrega)
+      .reduce((acc, pedido) => acc + pedido.detallesPedido.reduce((sum, detalle) => sum + detalle.cantidad, 0), 0);
+  
+    const cantidadNuevaVenta = selectedVenta.detalleVentas.reduce((acc, detalle) => acc + parseInt(detalle.cantidad), 0);
+    const cantidadTotalFinal = cantidadTotalEnFecha + cantidadNuevaVenta;
+    const disponibilidadRestante = 2000 - cantidadTotalEnFecha;
+  
+    // Si supera el límite, mostrar alerta
+    if (cantidadTotalFinal > 2000) {
+      Swal.fire({
+        title: "Error",
+        text: `La cantidad total de productos para la fecha ${fechaEntrega} excede el límite de 2000 unidades. Actualmente, solo puedes vender ${disponibilidadRestante} unidades más.`,
+        icon: "error",
+      });
+      return;
+    }
+  
+    // Si no supera el límite, continuar guardando la venta
     const ventaToSave = {
       id_cliente: parseInt(selectedVenta.id_cliente),
       numero_venta: selectedVenta.numero_venta || `VENTA-${Date.now()}`, // Generar número de venta si no se selecciona pedido
@@ -163,7 +184,7 @@ export function CrearVenta({ clientes, productos, fetchVentas, onCancel }) {
       total: selectedVenta.total,
       subtotal: selectedVenta.subtotal
     };
-
+  
     try {
       await axios.post("http://localhost:3000/api/ventas", ventaToSave);
       Swal.fire({
@@ -182,6 +203,7 @@ export function CrearVenta({ clientes, productos, fetchVentas, onCancel }) {
       });
     }
   };
+  
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">

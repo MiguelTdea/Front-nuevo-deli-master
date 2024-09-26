@@ -81,6 +81,28 @@ export function Ventas() {
     setMostrarReporteVentas(true); 
   };
 
+  const handleEntregarVenta = async (numero_venta) => {
+    console.log("Intentando entregar la venta con número:", numero_venta); // Log para verificar el número de venta
+  
+    try {
+      const response = await axios.patch(`http://localhost:3000/api/ventas/${numero_venta}/entregar`);
+      fetchVentas(); // Actualiza la lista de ventas después de entregar
+      Swal.fire({
+        icon: 'success',
+        title: 'La venta ha sido entregada correctamente.',
+      });
+    } catch (error) {
+      console.error("Error al entregar la venta:", error.response?.data || error.message);
+      Swal.fire({
+        icon: 'error',
+        title: `Hubo un problema al entregar la venta: ${error.response?.data?.error || error.message}`,
+      });
+    }
+  };
+  
+  
+  
+
   const fetchVentas = async () => {
     try {
       const response = await axios.get("http://localhost:3000/api/ventas");
@@ -426,24 +448,37 @@ export function Ventas() {
                                 >
                                   Anular
                                 </Button>
+                                
                               </td>
+                              
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex gap-2">
-                                <IconButton 
-                                  className="btnvisualizar" 
-                                  size="sm" 
-                                  onClick={() => handleViewDetails(venta)}                             
-                                >
-                                  <EyeIcon className="h-5 w-5" />
-                                </IconButton>
-                                <IconButton 
-                                  className="btnpdf" 
-                                  size="sm" 
-                                  onClick={() => generatePDF(venta)} 
-                                  disabled={venta.id_estado === 5} 
-                                >
-                                  <ArrowDownIcon className="h-5 w-5" />
-                                </IconButton>
-                              </td>
+  <IconButton 
+    className="btnvisualizar" 
+    size="sm" 
+    onClick={() => handleViewDetails(venta)}                             
+  >
+    <EyeIcon className="h-5 w-5" />
+  </IconButton>
+  <IconButton 
+    className="btnpdf" 
+    size="sm" 
+    onClick={() => generatePDF(venta)} 
+    disabled={venta.id_estado === 5} 
+  >
+    <ArrowDownIcon className="h-5 w-5" />
+  </IconButton>
+  <Button
+    onClick={() => handleEntregarVenta(venta.numero_venta)}
+    className={`${
+      venta.id_estado === 3 ? 'bg-green-600 hover:bg-green-800' : 'bg-gray-400 cursor-not-allowed'
+    } text-white rounded-sm px-2 py-1 transition h-7`}
+    size="sm"
+    disabled={venta.id_estado !== 3} // Solo habilitar si está en "Listo Para Entrega"
+  >
+    Entregar
+  </Button>
+</td>
+
                             </tr>
                           ))}
                         </tbody>

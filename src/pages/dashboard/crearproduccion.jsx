@@ -28,17 +28,23 @@ const Toast = Swal.mixin({
 export function CrearProduccion({ open, handleCreateProductionOpen }) {
   const [ventas, setVentas] = useState([]);
   const [selectedVentas, setSelectedVentas] = useState([]);
-  const [productionDetails, setProductionDetails] = useState([]);
+  const [productionDetails, setProductionDetails] = useState({});
   const [pedidos, setPedidos] = useState([]);
   const [ventasAsociadas, setVentasAsociadas] = useState([]);
+  const [productos, setProductos] = useState({});
+  const [totalProductosEnProduccion, setTotalProductosEnProduccion] = useState(0); // Total productos en estado 2
+
+  const LIMITE_PRODUCCION = 2000; // Límite de productos por día
 
   useEffect(() => {
     if (open) {
       setSelectedVentas([]);
-      setProductionDetails([]);
+      setProductionDetails({});
       fetchVentas();
       fetchPedidos();
       fetchVentasAsociadas();
+      fetchProductos();
+      fetchTotalProductosEnProduccion(); // Llamar para obtener el total de productos en producción
     }
   }, [open]);
 
@@ -70,46 +76,100 @@ export function CrearProduccion({ open, handleCreateProductionOpen }) {
     }
   };
 
+  const fetchProductos = async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/productos");
+      const productosMap = {};
+      response.data.forEach(producto => {
+        productosMap[producto.id_producto] = producto.nombre;
+      });
+      setProductos(productosMap);
+    } catch (error) {
+      console.error("Error fetching productos:", error);
+    }
+  };
+
+  // Nueva función para obtener el total de productos en producción (id_estado = 2)
+  const fetchTotalProductosEnProduccion = async () => {
+    try {
+      const response = await axios.get("http://localhost:3000/api/ordenesproduccion?estado=2");
+      const ordenesProduccion = response.data;
+
+      // Sumar la cantidad total de productos en todas las órdenes con id_estado = 2
+      const totalProductos = ordenesProduccion.reduce((total, orden) => {
+        if (orden.ordenProduccionDetalles && Array.isArray(orden.ordenProduccionDetalles)) {
+          const totalProductosOrden = orden.ordenProduccionDetalles.reduce((subtotal, detalle) => {
+            return subtotal + detalle.cantidad;
+          }, 0);
+          return total + totalProductosOrden;
+        }
+        return total;
+      }, 0);
+
+      setTotalProductosEnProduccion(totalProductos);
+    } catch (error) {
+      console.error("Error fetching total de productos en producción:", error);
+    }
+  };
+
   const handleVentaChange = (numero_venta, isChecked) => {
     const venta = ventas.find((v) => v.numero_venta === numero_venta);
     if (!venta) return;
 
     if (isChecked) {
-      if (!selectedVentas.includes(numero_venta)) {
-        setSelectedVentas([...selectedVentas, numero_venta]);
+      setSelectedVentas([...selectedVentas, numero_venta]);
 
-        const nuevosDetalles = [...productionDetails];
-        venta.detalles.forEach((detalle) => {
-          const existingDetail = nuevosDetalles.find(
-            (d) => d.id_producto === detalle.id_producto
-          );
-          if (existingDetail) {
-            existingDetail.cantidad += detalle.cantidad;
-          } else {
-            nuevosDetalles.push({
-              ...detalle,
-              nombre: detalle.nombre || `Producto ${detalle.id_producto}`,
-            });
-          }
-        });
+      const nuevosDetalles = { ...productionDetails };
+      venta.detalles.forEach((detalle) => {
+        if (nuevosDetalles[detalle.id_producto]) {
+          nuevosDetalles[detalle.id_producto].cantidad += detalle.cantidad;
+        } else {
+          nuevosDetalles[detalle.id_producto] = {
+            nombre: productos[detalle.id_producto] || `Producto ${detalle.id_producto}`,
+            cantidad: detalle.cantidad,
+          };
+        }
+      });
 
-        setProductionDetails(nuevosDetalles);
-      }
+      setProductionDetails(nuevosDetalles);
     } else {
       const nuevasVentasSeleccionadas = selectedVentas.filter(
         (num) => num !== numero_venta
       );
       setSelectedVentas(nuevasVentasSeleccionadas);
 
-      const nuevosDetalles = productionDetails.filter(
-        (detalle) =>
-          !venta.detalles.some((d) => d.id_producto === detalle.id_producto)
-      );
+      const nuevosDetalles = { ...productionDetails };
+      venta.detalles.forEach((detalle) => {
+        if (nuevosDetalles[detalle.id_producto]) {
+          nuevosDetalles[detalle.id_producto].cantidad -= detalle.cantidad;
+          if (nuevosDetalles[detalle.id_producto].cantidad <= 0) {
+            delete nuevosDetalles[detalle.id_producto];
+          }
+        }
+      });
+
       setProductionDetails(nuevosDetalles);
     }
   };
 
   const handleCreateProductionSave = async () => {
+    // Calcular el total de productos de la nueva orden
+    const totalProductosNuevaOrden = Object.values(productionDetails).reduce((total, detalle) => total + detalle.cantidad, 0);
+
+    // Calcular productos restantes para llegar al límite
+    const productosRestantes = LIMITE_PRODUCCION - totalProductosEnProduccion;
+
+    // Verificar si se supera el límite de capacidad
+    if (totalProductosNuevaOrden > productosRestantes) {
+      Swal.fire({
+        icon: "error",
+        title: "Capacidad excedida",
+        text: `No se puede crear la orden de producción porque se excedería el límite de ${LIMITE_PRODUCCION} productos por día. 
+        Puedes agregar un máximo de ${productosRestantes} productos.`,
+      });
+      return; // No continuar con la creación de la orden
+    }
+
     const numeroOrdenUnico = `ORD${Math.floor(Math.random() * 1000000)}`;
     const fechaActual = new Date().toISOString().split('T')[0];
 
@@ -117,8 +177,8 @@ export function CrearProduccion({ open, handleCreateProductionOpen }) {
       await axios.post("http://localhost:3000/api/ordenesproduccion", {
         numero_orden: numeroOrdenUnico,
         fecha_orden: fechaActual,
-        productos: productionDetails.map(detalle => ({
-          id_producto: detalle.id_producto,
+        productos: Object.entries(productionDetails).map(([id_producto, detalle]) => ({
+          id_producto: parseInt(id_producto),
           cantidad: detalle.cantidad,
         })),
         numero_ventas: selectedVentas,
@@ -128,7 +188,7 @@ export function CrearProduccion({ open, handleCreateProductionOpen }) {
         title: "Orden de producción creada correctamente.",
       });
       setSelectedVentas([]);
-      setProductionDetails([]);
+      setProductionDetails({});
       handleCreateProductionOpen();
     } catch (error) {
       console.error("Error al crear la orden de producción:", error);
@@ -161,7 +221,7 @@ export function CrearProduccion({ open, handleCreateProductionOpen }) {
         <Typography variant="h5" color="blue-gray">
           Crear Orden de Producción
         </Typography>
-        <div className="w-6"></div> {/* Placeholder para equilibrar el espacio */}
+        <div className="w-6"></div>
       </div>
       <DialogBody divider className="flex h-[80vh] p-4 gap-6">
         <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
@@ -187,8 +247,8 @@ export function CrearProduccion({ open, handleCreateProductionOpen }) {
             Resumen de Producción
           </Typography>
           <ul className="list-disc pl-4 text-sm">
-            {productionDetails.map((detalle, index) => (
-              <li key={index} className="mb-2">
+            {Object.entries(productionDetails).map(([id_producto, detalle]) => (
+              <li key={id_producto} className="mb-2">
                 {detalle.nombre}: Cantidad {detalle.cantidad}
               </li>
             ))}

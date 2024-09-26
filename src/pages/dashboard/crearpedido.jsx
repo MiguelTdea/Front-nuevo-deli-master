@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Input,
@@ -33,6 +33,24 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
   });
 
   const [errors, setErrors] = useState({});
+  const [ventas, setVentas] = useState([]); // Estado para almacenar las ventas
+  const [loadingVentas, setLoadingVentas] = useState(true); // Estado de carga para ventas
+
+  // useEffect para obtener las ventas de la API cuando el componente se monte
+  useEffect(() => {
+    const fetchVentas = async () => {
+      try {
+        const response = await axios.get("http://localhost:3000/api/ventas");
+        setVentas(response.data); // Actualiza el estado con las ventas obtenidas
+        setLoadingVentas(false); // Termina la carga
+      } catch (error) {
+        console.error("Error fetching ventas:", error);
+        setLoadingVentas(false); // Termina la carga incluso si hay error
+      }
+    };
+
+    fetchVentas();
+  }, []);
 
   const validateFields = () => {
     const newErrors = {};
@@ -105,7 +123,6 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
       toast.addEventListener("mouseleave", Swal.resumeTimer);
     },
   });
-  
 
   const handleAddDetalle = () => {
     setSelectedPedido({
@@ -129,71 +146,104 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
     }));
   };
 
- 
-
   const handleSave = async () => {
     // Validaciones previas
     const newErrors = {};
     if (!selectedPedido.id_cliente) {
-      newErrors.id_cliente = "El cliente es obligatorio";
+        newErrors.id_cliente = "El cliente es obligatorio";
     }
     if (!selectedPedido.fecha_entrega) {
-      newErrors.fecha_entrega = "La fecha de entrega es obligatoria";
+        newErrors.fecha_entrega = "La fecha de entrega es obligatoria";
     }
     if (selectedPedido.detallesPedido.length === 0) {
-      newErrors.detallesPedido = "Debe agregar al menos un detalle de pedido";
+        newErrors.detallesPedido = "Debe agregar al menos un detalle de pedido";
     }
     selectedPedido.detallesPedido.forEach((detalle, index) => {
-      if (!detalle.id_producto) {
-        newErrors[`producto_${index}`] = "El producto es obligatorio";
-      }
-      if (!detalle.cantidad) {
-        newErrors[`cantidad_${index}`] = "La cantidad es obligatoria";
-      }
+        if (!detalle.id_producto) {
+            newErrors[`producto_${index}`] = "El producto es obligatorio";
+        }
+        if (!detalle.cantidad || isNaN(detalle.cantidad) || detalle.cantidad <= 0) {
+            newErrors[`cantidad_${index}`] = "La cantidad debe ser un número positivo";
+        }
+        if (!detalle.precio_unitario || isNaN(detalle.precio_unitario) || detalle.precio_unitario <= 0) {
+            newErrors[`precio_unitario_${index}`] = "El precio unitario debe ser un número positivo";
+        }
     });
-  
+
     setErrors(newErrors);
-  
+
     if (Object.keys(newErrors).length > 0) {
-      // Si hay errores, no se guarda el pedido
-      return;
+        // Si hay errores, mostrar alerta y no guardar el pedido
+        Swal.fire({
+            title: "Error",
+            text: "Por favor, complete todos los campos requeridos correctamente.",
+            icon: "error",
+        });
+        return;
     }
-  
+
+    // Nueva lógica para verificar si la cantidad total de productos vendidos en la fecha excede el límite
+    const fechaEntrega = selectedPedido.fecha_entrega;
+
+    // Calcular la cantidad total de productos vendidos para la fecha de entrega seleccionada
+    const cantidadTotalVendidaEnFecha = ventas
+        .filter(venta => venta.fecha_entrega.split('T')[0] === fechaEntrega) // Filtra ventas por fecha de entrega
+        .reduce((acc, venta) => {
+            // Suma la cantidad de cada detalle de venta
+            return acc + venta.detalles.reduce((sum, detalle) => sum + detalle.cantidad, 0);
+        }, 0);
+
+    // Calcular la cantidad de la nueva compra (pedido)
+    const cantidadNuevaCompra = selectedPedido.detallesPedido.reduce((acc, detalle) => acc + parseInt(detalle.cantidad), 0);
+
+    const cantidadTotalFinal = cantidadTotalVendidaEnFecha + cantidadNuevaCompra;
+    const disponibilidadRestante = 2000 - cantidadTotalVendidaEnFecha;
+
+    // Si supera el límite, mostrar alerta
+    if (cantidadTotalFinal > 2000) {
+        Swal.fire({
+            title: "Error",
+            text: `La cantidad total de productos para la fecha ${fechaEntrega} excede el límite de 2000 unidades. Actualmente, solo puedes agregar ${disponibilidadRestante} unidades más.`,
+            icon: "error",
+        });
+        return;
+    }
+
+    // Si no supera el límite, continuar guardando el pedido
     const pedidoToSave = {
-      id_cliente: parseInt(selectedPedido.id_cliente),
-      numero_pedido: selectedPedido.numero_pedido,
-      fecha_entrega: new Date(selectedPedido.fecha_entrega).toISOString(),
-      fecha_pago: selectedPedido.pagado && selectedPedido.fecha_pago ? new Date(selectedPedido.fecha_pago).toISOString() : null,
-      estado: selectedPedido.pagado ? "Pendiente de Preparación" : "Esperando Pago",
-      pagado: selectedPedido.pagado,
-      detallesPedido: selectedPedido.detallesPedido.map(detalle => ({
-        id_producto: parseInt(detalle.id_producto),
-        cantidad: parseInt(detalle.cantidad),
-        precio_unitario: parseFloat(detalle.precio_unitario),
-        subtotal: parseFloat(detalle.subtotal) // Incluyendo el subtotal
-      })),
-      total: selectedPedido.total // Incluyendo el total
+        id_cliente: parseInt(selectedPedido.id_cliente),
+        numero_pedido: selectedPedido.numero_pedido,
+        fecha_entrega: new Date(selectedPedido.fecha_entrega).toISOString(),
+        fecha_pago: selectedPedido.fecha_pago ? new Date(selectedPedido.fecha_pago).toISOString() : null,
+        id_estado: selectedPedido.id_estado, // Asegúrate de asignar el estado correctamente
+        detallesPedido: selectedPedido.detallesPedido.map(detalle => ({
+            id_producto: parseInt(detalle.id_producto),
+            cantidad: parseInt(detalle.cantidad),
+            precio_unitario: parseFloat(detalle.precio_unitario),
+            subtotal: parseFloat(detalle.subtotal)
+        })),
+        total: selectedPedido.total
     };
-  
+
     try {
-      await axios.post("http://localhost:3000/api/pedidos", pedidoToSave);
-      Toast.fire({
-        title: '¡Creación exitosa!',
-        text: 'El pedido ha sido creado correctamente.',
-        icon: 'success',
-      });
-      fetchPedidos(); // Actualizar la lista de pedidos
-      onCancel(); // Regresar a la lista de pedidos
+        await axios.post("http://localhost:3000/api/pedidos", pedidoToSave);
+        Toast.fire({
+            title: '¡Creación exitosa!',
+            text: 'El pedido ha sido creado correctamente.',
+            icon: 'success',
+        });
+        fetchPedidos(); // Actualizar la lista de pedidos
+        onCancel(); // Regresar a la lista de pedidos
     } catch (error) {
-      console.error("Error saving pedido:", error);
-      Toast.fire({
-        title: 'Error',
-        text: 'Hubo un problema al guardar el pedido.',
-        icon: 'error',
-      });
+        console.error("Error saving pedido:", error);
+        Toast.fire({
+            title: 'Error',
+            text: 'Hubo un problema al guardar el pedido.',
+            icon: 'error',
+        });
     }
-  };
-  
+};
+
 
   return (
     <div className="flex-1 flex flex-col gap-4">
@@ -209,6 +259,14 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
           >
             Crear Pedido
           </div>
+          
+          {/* Mostrar un mensaje de carga mientras se obtienen las ventas */}
+          {loadingVentas && (
+            <Typography variant="h6" color="blue">
+              Cargando ventas...
+            </Typography>
+          )}
+
           <div className="w-full max-w-xs">
             <label className="block text-sm font-medium text-gray-700">Cliente:</label>
             <Select
@@ -247,7 +305,6 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
           <div className="w-full max-w-xs">
             <label className="block text-sm font-medium text-gray-700">Fecha de Entrega:</label>
             <Input
-             
               name="fecha_entrega"
               type="date"
               value={selectedPedido.fecha_entrega}
@@ -259,159 +316,139 @@ export function CrearPedido({ clientes, productos, fetchPedidos, onCancel }) {
               <p className="text-red-500 text-xs mt-1">{errors.fecha_entrega}</p>
             )}
           </div>
+        </div>
 
-          <div className="w-full max-w-xs">
-            <label className="block text-sm font-medium text-gray-700">Fecha de Pago:</label>
-            <Input
-             
-              name="fecha_pago"
-              type="date"
-              value={selectedPedido.fecha_pago}
-              onChange={handleChange}
-              className="w-full text-xs"
-              disabled={!selectedPedido.pagado}
-            />
+        <div className="mt-6 text-center w-1/2 flex flex-col gap-4">
+          <Typography variant="h6" color="blue-gray" className="font-semibold mb-4">
+            Detalles del Pedido
+          </Typography>
+
+          {selectedPedido.detallesPedido.map((detalle, index) => (
+            <div key={index} className="flex flex-col gap-4 mb-1 p-4 bg-gray-50 rounded-md shadow-sm border border-gray-200">
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Producto y Cantidad en la misma fila */}
+                <div className="flex flex-col md:w-1/2 gap-2">
+                  <label className="block text-sm font-medium text-gray-700">Producto:</label>
+                  <Select
+                    name="id_producto"
+                    value={detalle.id_producto}
+                    onChange={(e) => handleDetalleChange(index, { target: { name: 'id_producto', value: e } })}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
+                    required
+                  >
+                    {productos
+                      .filter(producto => producto.estado)
+                      .map(producto => (
+                        <Option key={producto.id_producto} value={producto.id_producto}>
+                          {producto.nombre}
+                        </Option>
+                      ))}
+                  </Select>
+                  {errors[`producto_${index}`] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[`producto_${index}`]}</p>
+                  )}
+                </div>
+
+                <div className="flex flex-col md:w-1/2 gap-2">
+                  <label className="block text-sm font-medium text-gray-700">Cantidad:</label>
+                  <Input
+                    name="cantidad"
+                    type="number"
+                    value={detalle.cantidad}
+                    onChange={(e) => handleDetalleChange(index, e)}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
+                    required
+                  />
+                  {errors[`cantidad_${index}`] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[`cantidad_${index}`]}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Precio Unitario y Subtotal en la misma fila */}
+              <div className="flex flex-col md:flex-row gap-4 mt-4">
+                <div className="flex flex-col md:w-1/2 gap-2">
+                  <label className="block text-sm font-medium text-gray-700">Precio Unitario:</label>
+                  <Input
+                    name="precio_unitario"
+                    type="number"
+                    value={detalle.precio_unitario}
+                    onChange={(e) => handleDetalleChange(index, e)}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
+                    required
+                  />
+                  {errors[`precio_unitario_${index}`] && (
+                    <p className="text-red-500 text-xs mt-1">{errors[`precio_unitario_${index}`]}</p>
+                  )}
+                </div>
+
+                <div className="flex flex-col md:w-1/2 gap-2">
+                  <label className="block text-sm font-medium text-gray-700">Subtotal:</label>
+                  <input
+                    name="subtotal"
+                    type="text"
+                    value={`$${(detalle.subtotal || 0).toFixed(2)}`}
+                    readOnly
+                    className="w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Botón de eliminar (Trash Icon) alineado a la derecha */}
+              <div className="flex justify-end mt-2">
+                <IconButton
+                  color="red"
+                  onClick={() => handleRemoveDetalle(index)}
+                  className="mt-4"
+                >
+                  <TrashIcon className="h-5 w-5" />
+                </IconButton>
+              </div>
+            </div>
+          ))}
+
+          {errors.detallesPedido && (
+            <p className="text-red-500 text-xs mb-4">{errors.detallesPedido}</p>
+          )}
+
+          {/* Botón para agregar detalle */}
+          <div className="flex items-center mt-4">
+            <Button
+              size="sm"
+              onClick={handleAddDetalle}
+              className="flex items-center gap-2 bg-black text-white hover:bg-pink-800 px-4 py-2 rounded-md"
+            >
+              <PlusIcon className="h-5 w-5" />
+              <span className="sr-only">Agregar Detalle</span>
+            </Button>
           </div>
 
-          
-        </div>
-
-       
-        
-        <div className="mt-6 text-center">
-        <Typography variant="h6" color="blue-gray" className="font-semibold mb-4">
-    Detalles del Pedido
-  </Typography>
-
-  {selectedPedido.detallesPedido.map((detalle, index) => (
-    <div key={index} className="flex flex-col gap-4 mb-1 p-4 bg-gray-50 rounded-md shadow-sm border border-gray-200">
-      <div className="flex flex-col md:flex-row gap-4">
-        {/* Producto y Cantidad en la misma fila */}
-        <div className="flex flex-col md:w-1/2 gap-2">
-          <label className="block text-sm font-medium text-gray-700">Producto:</label>
-          <Select
-            name="id_producto"
-            value={detalle.id_producto}
-            onChange={(e) => handleDetalleChange(index, { target: { name: 'id_producto', value: e } })}
-            className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
-            required
-          >
-            {productos
-              .filter(producto => producto.estado)
-              .map(producto => (
-                <Option key={producto.id_producto} value={producto.id_producto}>
-                  {producto.nombre}
-                </Option>
-              ))}
-          </Select>
-          {errors[`producto_${index}`] && (
-            <p className="text-red-500 text-xs mt-1">{errors[`producto_${index}`]}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col md:w-1/2 gap-2">
-          <label className="block text-sm font-medium text-gray-700">Cantidad:</label>
-          <Input
-            name="cantidad"
-            type="number"
-            value={detalle.cantidad}
-            onChange={(e) => handleDetalleChange(index, e)}
-            className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
-            required
-          />
-          {errors[`cantidad_${index}`] && (
-            <p className="text-red-500 text-xs mt-1">{errors[`cantidad_${index}`]}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Precio Unitario y Subtotal en la misma fila */}
-      <div className="flex flex-col md:flex-row gap-4 mt-4">
-        <div className="flex flex-col md:w-1/2 gap-2">
-          <label className="block text-sm font-medium text-gray-700">Precio Unitario:</label>
-          <Input
-            name="precio_unitario"
-            type="number"
-            value={detalle.precio_unitario}
-            onChange={(e) => handleDetalleChange(index, e)}
-            className="w-full p-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:ring-0"
-            required
-          />
-          {errors[`precio_unitario_${index}`] && (
-            <p className="text-red-500 text-xs mt-1">{errors[`precio_unitario_${index}`]}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col md:w-1/2 gap-2">
-          <label className="block text-sm font-medium text-gray-700">Subtotal:</label>
-          <input
-            name="subtotal"
-            type="text"
-            value={`$${(detalle.subtotal || 0).toFixed(2)}`}
-            readOnly
-            className="w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Botón de eliminar (Trash Icon) alineado a la derecha */}
-      <div className="flex justify-end mt-2">
-        <IconButton
-          color="red"
-          onClick={() => handleRemoveDetalle(index)}
-          className="mt-4"
-        >
-          <TrashIcon className="h-5 w-5" />
-        </IconButton>
-      </div>
-    </div>
-  ))}
-
-  {errors.detallesPedido && (
-    <p className="text-red-500 text-xs mb-4">{errors.detallesPedido}</p>
-  )}
-
-  {/* Botón para agregar detalle */}
-  <div className="flex items-center mt-4">
-    <Button
-      size="sm"
-      onClick={handleAddDetalle}
-      className="flex items-center gap-2 bg-black text-white hover:bg-pink-800 px-4 py-2 rounded-md"
-    >
-      <PlusIcon className="h-5 w-5" />
-      <span className="sr-only">Agregar Detalle</span>
-    </Button>
-  </div>
-
-
-
-  <div className="flex justify-end mt-4">
-  <Typography variant="h6" color="blue-gray">
-  Total de la Compra: ${(selectedPedido.total  || 0).toFixed(2)}
-  </Typography>      
+          <div className="flex justify-end mt-4">
+            <Typography variant="h6" color="blue-gray">
+              Total de la Compra: ${(selectedPedido.total || 0).toFixed(2)}
+            </Typography>
           </div>
         </div>
       </div>
 
       <div className="bg-white p-4 flex justify-end gap-4 border-t border-gray-200">
-  <Button
-    variant="text"
-    size="sm"
-    onClick={onCancel}
-    className="btncancelarm text-white"
-  >
-    Cancelar
-  </Button>
-  <Button
-    variant="gradient"
-    size="sm"
-    onClick={handleSave}
-    className="btnagregarm text-white"
-  >
-    Crear Pedido
-  </Button>
-</div>
-
+        <Button
+          variant="text"
+          size="sm"
+          onClick={onCancel}
+          className="btncancelarm text-white"
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="gradient"
+          size="sm"
+          onClick={handleSave}
+          className="btnagregarm text-white"
+        >
+          Crear Pedido
+        </Button>
+      </div>
     </div>
   );
 }

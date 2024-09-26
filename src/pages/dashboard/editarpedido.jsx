@@ -28,10 +28,25 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
     total: 0 // Agregar total al estado
   });
 
+  const [ventas, setVentas] = useState([]); // Estado para almacenar las ventas
+  const [loadingVentas, setLoadingVentas] = useState(true); // Estado de carga para ventas
   const [clienteNombre, setClienteNombre] = useState(""); // Para almacenar el nombre del cliente
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
+    const fetchVentas = async () => {
+      try {
+        const response = await axios.get("http://localhost:3000/api/ventas");
+        setVentas(response.data); // Actualiza el estado con las ventas obtenidas
+        setLoadingVentas(false); // Termina la carga
+      } catch (error) {
+        console.error("Error fetching ventas:", error);
+        setLoadingVentas(false); // Termina la carga incluso si hay error
+      }
+    };
+
+    fetchVentas();
+
     if (pedido) {
       if (pedido.id_estado !== 7) {
         Swal.fire({
@@ -149,6 +164,33 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
         title: 'Error',
         text: 'Por favor, complete todos los campos requeridos.',
         icon: 'error',
+      });
+      return;
+    }
+
+    // Nueva lógica para verificar si la cantidad total de productos vendidos en la fecha excede el límite
+    const fechaEntrega = selectedPedido.fecha_entrega;
+
+    // Calcular la cantidad total de productos vendidos para la fecha de entrega seleccionada
+    const cantidadTotalVendidaEnFecha = ventas
+      .filter(venta => venta.fecha_entrega.split('T')[0] === fechaEntrega) // Filtra ventas por fecha de entrega
+      .reduce((acc, venta) => {
+        // Suma la cantidad de cada detalle de venta
+        return acc + venta.detalles.reduce((sum, detalle) => sum + detalle.cantidad, 0);
+      }, 0);
+
+    // Calcular la cantidad de la nueva compra (pedido)
+    const cantidadNuevaCompra = selectedPedido.detallesPedido.reduce((acc, detalle) => acc + parseInt(detalle.cantidad), 0);
+
+    const cantidadTotalFinal = cantidadTotalVendidaEnFecha + cantidadNuevaCompra;
+    const disponibilidadRestante = 2000 - cantidadTotalVendidaEnFecha;
+
+    // Si supera el límite, mostrar alerta
+    if (cantidadTotalFinal > 2000) {
+      Swal.fire({
+        title: "Error",
+        text: `La cantidad total de productos para la fecha ${fechaEntrega} excede el límite de 2000 unidades. Actualmente, solo puedes agregar ${disponibilidadRestante} unidades más.`,
+        icon: "error",
       });
       return;
     }
