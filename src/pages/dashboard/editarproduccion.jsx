@@ -246,35 +246,41 @@ export function EditarProduccion({ open, handleEditProductionOpen, orden }) {
         <div className="w-6"></div>
       </div>
       <DialogBody divider className="flex h-[80vh] p-4 gap-6">
-        <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
-          <Typography variant="h6" color="blue-gray" className="mb-4 text-sm">
-            Seleccionar Ventas para la Orden
-          </Typography>
-          {ventasFiltradas.map(venta => (
-            <div key={venta.numero_venta} className="mb-4">
-              <Checkbox
-                id={`venta-${venta.numero_venta}`}
-                label={`Venta ${venta.numero_venta} - Cliente: ${venta.cliente.nombre} - Documento: ${venta.cliente.numero_documento}`}
-                onChange={(e) => handleVentaChange(venta.numero_venta, e.target.checked)}
-                checked={selectedVentas.includes(venta.numero_venta)}
-              />
-            </div>
-          ))}
+  <div className="flex-1 flex flex-col gap-4 overflow-y-auto">
+    <Typography variant="h6" color="blue-gray" className="mb-4 text-sm">
+      Seleccionar Ventas para la Orden
+    </Typography>
+    {ventasFiltradas.map((venta) => (
+      <div key={venta.id_venta} className="mb-4">
+        <Checkbox
+          id={`venta-${venta.id_venta}`}
+          label={`Venta ${venta.numero_venta} - Cliente: ${venta.cliente.nombre} - Documento: ${venta.cliente.numero_documento}`}
+          onChange={(e) => handleVentaChange(venta.numero_venta, e.target.checked)}
+          checked={selectedVentas.includes(venta.numero_venta)}
+        />
+        <div style={{ fontWeight: 'bold', marginTop: '8px' }}>
+          <span>Fecha de Entrega:</span>
+          <br />
+          <span>{new Date(venta.fecha_entrega).toISOString().split('T')[0]}</span>
         </div>
+      </div>
+    ))}
+  </div>
 
-        <div className="w-full max-w-xs bg-gray-100 p-4 rounded-lg shadow-md max-h-[80vh] overflow-y-auto">
-          <Typography variant="h6" color="blue-gray" className="mb-4 text-lg">
-            Resumen de Producción
-          </Typography>
-          <ul className="list-disc pl-4 text-sm">
-            {Object.entries(productionDetails).map(([id_producto, detalle]) => (
-              <li key={id_producto} className="mb-2">
-                {detalle.nombre}: {detalle.cantidad}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </DialogBody>
+  <div className="w-full max-w-xs bg-gray-100 p-4 rounded-lg shadow-md max-h-[80vh] overflow-y-auto">
+    <Typography variant="h6" color="blue-gray" className="mb-4 text-lg">
+      Resumen de Producción
+    </Typography>
+    <ul className="list-disc pl-4 text-sm">
+      {Object.entries(productionDetails).map(([id_producto, detalle]) => (
+        <li key={id_producto} className="mb-2">
+          {detalle.nombre}: Cantidad {detalle.cantidad}
+        </li>
+      ))}
+    </ul>
+  </div>
+</DialogBody>
+
       <DialogFooter className="bg-white p-4 flex justify-end gap-2">
         <Button
           variant="text"
