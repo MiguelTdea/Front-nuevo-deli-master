@@ -9,12 +9,22 @@ export function ReporteVentas() {
       const response = await axios.get("http://localhost:3000/api/ventas");
       const ventas = response.data;
 
+      // Obtener la lista de estados
+      const estadosResponse = await axios.get("http://localhost:3000/api/estados");
+      const estados = estadosResponse.data;
+
+      // Crear un diccionario de estados para mapear id_estado con nombre_estado
+      const estadosDict = estados.reduce((acc, estado) => {
+        acc[estado.id_estado] = estado.nombre_estado;
+        return acc;
+      }, {});
+
       const datosReporte = ventas.map((venta) => ({
         "Número de Venta": venta.numero_venta || "N/A",
         "Cliente": venta.cliente?.nombre || "Desconocido",
         "Fecha de Venta": venta.fecha_venta.split("T")[0],
         "Fecha de Entrega": venta.fecha_entrega.split(" ")[0],
-        "Estado": venta.estado,
+        "Estado": estadosDict[venta.id_estado] || "Desconocido",
         "Total": parseFloat(venta.total).toFixed(2),
         "Pagado": venta.pagado ? "Sí" : "No",
         "Anulación": venta.anulacion || "N/A",

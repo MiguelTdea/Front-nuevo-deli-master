@@ -11,7 +11,7 @@ import {
   DialogBody,
   DialogFooter,
 } from "@material-tailwind/react";
-import { PlusIcon, EyeIcon, CogIcon, ArrowDownTrayIcon, ArchiveBoxArrowDownIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/solid";
+import { PlusIcon, EyeIcon, CogIcon, ArrowDownTrayIcon, ArchiveBoxArrowDownIcon, PencilIcon, TrashIcon, XMarkIcon, ClipboardDocumentListIcon } from "@heroicons/react/24/solid";
 import axios from "../../utils/axiosConfig";
 import Swal from 'sweetalert2';
 import OrdenesProducidas from "./OrdenesProducidas";
@@ -20,6 +20,8 @@ import CrearProduccion from "./CrearProduccion";
 import EditarProduccion from "./EditarProduccion";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+
 
 const Toast = Swal.mixin({
   toast: true,
@@ -32,6 +34,7 @@ const Toast = Swal.mixin({
     toast.addEventListener('mouseleave', Swal.resumeTimer);
   }
 });
+
 
 export function OrdenesProduccion() {
   const [ordenes, setOrdenes] = useState([]);
@@ -50,11 +53,13 @@ export function OrdenesProduccion() {
   const [ordenToAnular, setOrdenToAnular] = useState(null); // Orden seleccionada para anular
   const [motivoAnulacion, setMotivoAnulacion] = useState(""); // Motivo de anulación
 
+
   // Obtener las órdenes y los estados
   useEffect(() => {
     fetchOrdenes();
     fetchEstados();  // Llamar a la API de estados
   }, []);
+
 
   // Obtener estados desde la API
   const fetchEstados = async () => {
@@ -66,6 +71,7 @@ export function OrdenesProduccion() {
     }
   };
 
+
   const fetchOrdenes = async () => {
     try {
       const response = await axios.get("http://localhost:3000/api/ordenesproduccion");
@@ -76,6 +82,7 @@ export function OrdenesProduccion() {
     }
   };
 
+
   // Filtrar las órdenes por búsqueda
   useEffect(() => {
     const filtered = ordenes.filter((orden) =>
@@ -84,22 +91,27 @@ export function OrdenesProduccion() {
     setFilteredOrdenes(filtered);
   }, [search, ordenes]);
 
+
   const handleSearchChange = (e) => {
     setSearch(e.target.value);
   };
+
 
   const handleViewDetails = (orden) => {
     setSelectedOrden(orden);
     setDetailsOpen(true);
   };
 
+
   const handleDetailsOpen = () => setDetailsOpen(!detailsOpen);
+
 
   // Función para obtener el nombre del estado según el id_estado
   const getNombreEstado = (id_estado) => {
     const estado = estados.find(est => est.id_estado === id_estado);
     return estado ? estado.nombre_estado : 'Desconocido';  // Mostrar "Desconocido" si no se encuentra
   };
+
 
   const handleProducirWithConfirmation = async (id_orden) => {
     const result = await Swal.fire({
@@ -113,10 +125,12 @@ export function OrdenesProduccion() {
       cancelButtonText: 'Cancelar',
     });
 
+
     if (result.isConfirmed) {
       handleProducir(id_orden); // Llama a la función de producción si se confirma
     }
   };
+
 
   const handleProducir = async (idOrden) => {
     try {
@@ -128,12 +142,12 @@ export function OrdenesProduccion() {
       fetchOrdenes(); // Actualizar la lista de órdenes después de la producción
     } catch (error) {
       console.error("Error produciendo la orden:", error);
-  
+ 
       // Capturar el mensaje de error enviado por el backend
-      const errorMessage = error.response && error.response.data && error.response.data.error 
-        ? error.response.data.error 
+      const errorMessage = error.response && error.response.data && error.response.data.error
+        ? error.response.data.error
         : 'Hubo un problema al intentar producir la orden.';
-  
+ 
       Swal.fire({
         icon: 'error',
         title: 'Error al producir',
@@ -151,11 +165,13 @@ export function OrdenesProduccion() {
     }
   };
 
+
   // Función para anular orden
   const handleAnularOrden = (orden) => {
     setOrdenToAnular(orden);
     setShowAnulacionDialog(true); // Mostrar diálogo de anulación
   };
+
 
   const handleConfirmAnulacion = async () => {
     if (!motivoAnulacion.trim()) {
@@ -165,6 +181,7 @@ export function OrdenesProduccion() {
       });
       return;
     }
+
 
     try {
       await axios.patch(`http://localhost:3000/api/ordenesproduccion/${ordenToAnular.id_orden}/estado`, {
@@ -187,20 +204,24 @@ export function OrdenesProduccion() {
     }
   };
 
+
   const handleEditOrden = (orden) => {
     setSelectedOrden(orden);
     setShowEditarProduccion(true);
   };
+
 
   const toggleOrdenesProducidas = () => {
     setShowOrdenesProducidas(!showOrdenesProducidas);
     setShowOrdenesInactivas(false); // Asegurar que no se muestren ambas listas al mismo tiempo
   };
 
+
   const toggleOrdenesInactivas = () => {
     setShowOrdenesInactivas(!showOrdenesInactivas);
     setShowOrdenesProducidas(false); // Asegurar que no se muestren ambas listas al mismo tiempo
   };
+
 
   const toggleCrearProduccion = () => {
     setShowCrearProduccion(!showCrearProduccion);
@@ -209,6 +230,7 @@ export function OrdenesProduccion() {
     }
   };
 
+
   const toggleEditarProduccion = () => {
     setShowEditarProduccion(!showEditarProduccion);
     if (showEditarProduccion) {
@@ -216,29 +238,30 @@ export function OrdenesProduccion() {
     }
   };
 
+
   const handleDownloadDetails = (orden) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-  
+ 
     // Agregar el logo en la parte superior izquierda
     const logo = "/img/delicremlogo.png";
     doc.addImage(logo, "JPEG", 10, 10, 30, 15);
-  
+ 
     // Título del PDF centrado, alineado verticalmente con el logo
     doc.setFontSize(20);
     doc.text('Detalles de la Orden de Producción', 105, 20, { align: 'center' });
-  
+ 
     // Información general de la orden
     doc.setFontSize(12);
     doc.setTextColor(50, 50, 50); // Color gris oscuro para texto
     doc.text(`Número de Orden: ${orden.numero_orden}`, 20, 50);
     doc.text(`Fecha de Orden: ${new Date(orden.fecha_orden).toLocaleDateString()}`, 20, 58);
-  
+ 
     // Detalles de los productos
     doc.setFontSize(14);
     doc.setTextColor(0, 0, 0); // Negro para encabezados
     doc.text('Detalles de los Productos', 20, 75);
-  
+ 
     // Agregar tabla con detalles de los productos
     doc.autoTable({
       startY: 85,
@@ -259,21 +282,33 @@ export function OrdenesProduccion() {
         textColor: [255, 255, 255], // Blanco para el texto del encabezado
       },
     });
-  
+ 
     // Información adicional
     doc.setFontSize(10);
     doc.setTextColor(50, 50, 50); // Gris oscuro para información adicional
     doc.text(`Fecha de Creación: ${new Date(orden.createdAt).toLocaleString()}`, 20, doc.internal.pageSize.height - 20);
     doc.text(`Última Actualización: ${new Date(orden.updatedAt).toLocaleString()}`, 20, doc.internal.pageSize.height - 10);
-  
+ 
     doc.save(`Orden_${orden.numero_orden}_detalles.pdf`);
   };
+
 
   const indexOfLastOrden = currentPage * ordenesPerPage;
   const indexOfFirstOrden = indexOfLastOrden - ordenesPerPage;
   const currentOrdenes = filteredOrdenes.slice(indexOfFirstOrden, indexOfLastOrden);
 
+
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  const handleBackToMain = () => {
+    setShowOrdenesProducidas(false); // Asegúrate de que esté manipulando correctamente el estado
+  };
+  
+  const handleBackToMain2 = () => {
+    setShowOrdenesInactivas(false); // Asegúrate de que esté manipulando correctamente el estado
+  };
+
+
 
   return (
     <div className="flex">
@@ -283,10 +318,11 @@ export function OrdenesProduccion() {
           <div className="absolute inset-0 h-full w-full bg-white-900/75" />
         </div>
 
+
         {showOrdenesProducidas ? (
-          <OrdenesProducidas />
+          <OrdenesProducidas handleBackToMain={handleBackToMain}/>
         ) : showOrdenesInactivas ? (
-          <OrdenesInactivas />
+          <OrdenesInactivas handleBackToMain={handleBackToMain2} />
         ) : (
           <Card className="mx-3 -mt-16 mb-6 lg:mx-4 border border-blue-gray-100">
             <CardBody className="p-6">
@@ -298,9 +334,16 @@ export function OrdenesProduccion() {
                 className="mb-20"
               />
               <div className="mb-3">
-                <Typography variant="h5" color="blue-gray" className="mb-4">
-                  Lista de Órdenes de Producción
-                </Typography>
+              <Typography
+  variant="h5"
+  color="blue-gray"
+  className="mb-4"
+  style={{ paddingTop: '15px' }} // Ajusta el valor según necesites
+>
+  Lista de Órdenes de Producción
+</Typography>
+
+
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -314,10 +357,10 @@ export function OrdenesProduccion() {
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Productos
                         </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" className="px-20 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Estado
                         </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th scope="col" className="px-20 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Acciones
                         </th>
                       </tr>
@@ -357,14 +400,18 @@ export function OrdenesProduccion() {
                               >
                                 <EyeIcon className="h-4 w-4" />
                               </IconButton>
+
+
                               <IconButton
-                                className="btnproducir"
-                                size="sm"
-                                color="green"
-                                onClick={() => handleProducirWithConfirmation(orden.id_orden)}
-                              >
-                                <ArchiveBoxArrowDownIcon className="h-4 w-4" />
-                              </IconButton>
+  className="btnproducir"
+  size="sm"
+  color="green"
+  onClick={() => handleProducirWithConfirmation(orden.id_orden)}
+>
+  <ClipboardDocumentCheckIcon className="h-4 w-4" />
+</IconButton>
+
+
                               <IconButton
                                 className="btnedit"
                                 size="sm"
@@ -373,16 +420,27 @@ export function OrdenesProduccion() {
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </IconButton>
+
+
+
+
                               <IconButton
-                                className="btnanular"
-                                size="sm"
-                                color="red"
-                                onClick={() => handleAnularOrden(orden)}
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </IconButton>
+  className="btnanular"
+  size="sm"
+  color="red"
+  onClick={() => handleAnularOrden(orden)}
+>
+  <XMarkIcon className="h-4 w-4" /> {/* Utiliza el nuevo ícono aquí */}
+</IconButton>
+
+
+
+
+
+
+                             
                               <IconButton
-                                className="btnpdf" 
+                                className="btnpdf"
                                 size="sm"
                                 onClick={() => handleDownloadDetails(orden)}
                               >
@@ -411,6 +469,7 @@ export function OrdenesProduccion() {
           </Card>
         )}
       </div>
+
 
       {/* Sidebar dentro del componente */}
       <div className="w-1/4 p-6 bg-gray-50 border-l border-gray-200 shadow-md">
@@ -445,11 +504,12 @@ export function OrdenesProduccion() {
               size="sm"
               onClick={toggleOrdenesInactivas}
             >
-              Órdenes Inactivas
+              Órdenes Anuladas
             </Button>
           </li>
         </ul>
       </div>
+
 
       {/* Modal de detalles */}
       <Dialog open={detailsOpen} handler={handleDetailsOpen} className="max-w-xs w-11/12 bg-white rounded-lg shadow-lg" size="xs">
@@ -487,29 +547,56 @@ export function OrdenesProduccion() {
         </DialogFooter>
       </Dialog>
 
-      {/* Modal de anulación */}
-      <Dialog open={showAnulacionDialog} handler={() => setShowAnulacionDialog(false)} className="max-w-xs w-11/12 bg-white rounded-lg shadow-lg" size="xs">
-        <DialogHeader className="text-xl font-bold text-gray-800">
-          Anular Orden de Producción
-        </DialogHeader>
-        <DialogBody>
-          <Input
-            label="Motivo de Anulación"
-            value={motivoAnulacion}
-            onChange={(e) => setMotivoAnulacion(e.target.value)}
-            type="text"
-            placeholder="Ingresa el motivo"
-          />
-        </DialogBody>
-        <DialogFooter className="flex justify-center">
-          <Button className="btncancelarm" size="sm" onClick={() => setShowAnulacionDialog(false)}>
-            Cancelar
-          </Button>
-          <Button className="btnanularm" size="sm" color="red" onClick={handleConfirmAnulacion}>
-            Anular Orden
-          </Button>
-        </DialogFooter>
-      </Dialog>
+
+     {/* Modal de anulación */}
+{showAnulacionDialog && (
+  <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-70">
+    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full transition-transform transform scale-100 hover:scale-105">
+    <Typography variant="h5" className="font-semibold mb-4 text-righ">
+      Motivo de Anulación de la Orden de Producción
+      </Typography>
+      <textarea
+        label="Motivo de Anulación"
+        value={motivoAnulacion}
+        onChange={(e) => setMotivoAnulacion(e.target.value)}
+        type="text"
+         placeholder="Escribe el motivo de anulación aquí..."
+         className={`w-full p-4 border ${motivoAnulacion.length < 5 || motivoAnulacion.length > 30 ? 'border-red-500' : 'border-gray-300'} rounded-lg mb-4 resize-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition duration-200`}
+         rows={4}
+         required
+      />
+     
+      {motivoAnulacion.length < 5 && (
+        <p className="text-red-500 text-sm">El motivo debe tener al menos 5 letras.</p>
+      )}
+      {motivoAnulacion.length > 30 && (
+        <p className="text-red-500 text-sm">El motivo no puede tener más de 30 letras.</p>
+      )}
+      <div className="flex justify-end gap-3 mt-4">
+        <Button
+          variant="text"
+          className="btncancelarm text-white"
+          size="sm"
+          onClick={() => setShowAnulacionDialog(false)}
+        >
+          Cancelar
+        </Button>
+        <Button
+          variant="gradient"
+         className="btnagregarm bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition duration-200"
+          size="sm"
+          disabled={motivoAnulacion.length < 5 || motivoAnulacion.length > 30} // Deshabilitar el botón si no cumple la validación
+          onClick={handleConfirmAnulacion}
+        >
+          Anular Orden
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
 
       {/* Incluir los componentes CrearProduccion y EditarProduccion con su estado de visibilidad */}
       <CrearProduccion open={showCrearProduccion} handleCreateProductionOpen={toggleCrearProduccion} refreshOrders={fetchOrdenes} />
@@ -518,4 +605,8 @@ export function OrdenesProduccion() {
   );
 }
 
+
 export default OrdenesProduccion;
+
+
+

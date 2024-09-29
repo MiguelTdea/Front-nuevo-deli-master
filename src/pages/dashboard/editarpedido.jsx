@@ -157,7 +157,7 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
         newErrors[`cantidad_${index}`] = "La cantidad es obligatoria";
       }
     });
-
+  
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       Swal.fire({
@@ -167,24 +167,23 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
       });
       return;
     }
-
+  
     // Nueva lógica para verificar si la cantidad total de productos vendidos en la fecha excede el límite
     const fechaEntrega = selectedPedido.fecha_entrega;
-
+  
     // Calcular la cantidad total de productos vendidos para la fecha de entrega seleccionada
     const cantidadTotalVendidaEnFecha = ventas
-      .filter(venta => venta.fecha_entrega.split('T')[0] === fechaEntrega) // Filtra ventas por fecha de entrega
+      .filter(venta => venta.fecha_entrega.split('T')[0] === fechaEntrega)
       .reduce((acc, venta) => {
-        // Suma la cantidad de cada detalle de venta
         return acc + venta.detalles.reduce((sum, detalle) => sum + detalle.cantidad, 0);
       }, 0);
-
+  
     // Calcular la cantidad de la nueva compra (pedido)
     const cantidadNuevaCompra = selectedPedido.detallesPedido.reduce((acc, detalle) => acc + parseInt(detalle.cantidad), 0);
-
+  
     const cantidadTotalFinal = cantidadTotalVendidaEnFecha + cantidadNuevaCompra;
     const disponibilidadRestante = 2000 - cantidadTotalVendidaEnFecha;
-
+  
     // Si supera el límite, mostrar alerta
     if (cantidadTotalFinal > 2000) {
       Swal.fire({
@@ -194,8 +193,11 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
       });
       return;
     }
-
+  
+    // Incluir numero_pedido e id_cliente en el cuerpo de la solicitud
     const pedidoToSave = {
+      id_cliente: selectedPedido.id_cliente, // Incluir id_cliente
+      numero_pedido: selectedPedido.numero_pedido, // Incluir numero_pedido
       fecha_entrega: new Date(selectedPedido.fecha_entrega).toISOString(),
       fecha_pago: selectedPedido.fecha_pago ? new Date(selectedPedido.fecha_pago).toISOString() : null,
       id_estado: selectedPedido.id_estado, // Guardar el nuevo estado seleccionado
@@ -207,7 +209,7 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
       })),
       total: selectedPedido.total // Incluyendo el total
     };
-
+  
     try {
       await axios.put(`http://localhost:3000/api/pedidos/${selectedPedido.id_pedido}`, pedidoToSave);
       Swal.fire({
@@ -226,6 +228,7 @@ export function EditarPedido({ pedido, clientes = [], productos = [], fetchPedid
       });
     }
   };
+  
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">

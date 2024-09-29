@@ -9,12 +9,22 @@ export function ReporteCompras() {
       const response = await axios.get("http://localhost:3000/api/compras");
       const compras = response.data;
 
+       // Obtener la lista de estados
+       const estadosResponse = await axios.get("http://localhost:3000/api/estados");
+       const estados = estadosResponse.data;
+ 
+       // Crear un diccionario de estados para mapear id_estado con nombre_estado
+       const estadosDict = estados.reduce((acc, estado) => {
+         acc[estado.id_estado] = estado.nombre_estado;
+         return acc;
+       }, {});
+
       const datosReporte = compras.map((compra) => ({
         "Número de Recibo": compra.numero_recibo || "N/A",
         "Proveedor": compra.proveedorCompra?.nombre || "Desconocido",
         "Fecha de Compra": compra.fecha_compra.split("T")[0],
         "Fecha de Registro": compra.fecha_registro.split("T")[0],
-        "Estado": compra.estado,
+        "Estado": estadosDict[compra.id_estado] || "Desconocido",
         "Total": parseFloat(compra.total).toFixed(2),
         "Anulación": compra.motivo_anulacion || "N/A",  // Incluyendo el campo de anulación
       }));

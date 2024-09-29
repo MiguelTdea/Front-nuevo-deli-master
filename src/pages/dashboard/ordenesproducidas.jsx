@@ -26,7 +26,7 @@ const Toast = Swal.mixin({
   }
 });
 
-export function OrdenesProducidas() {
+export function OrdenesProducidas({handleBackToMain}) {
   const [ordenesProducidas, setOrdenesProducidas] = useState([]);
   const [estados, setEstados] = useState([]); // Guardar los estados
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -109,10 +109,19 @@ export function OrdenesProducidas() {
       }
     }
   };
+  
 
   return (
     <Card className="mx-3 -mt-16 mb-6 lg:mx-4 border border-blue-gray-100">
       <CardBody className="p-4">
+      <Button 
+          onClick={handleBackToMain}
+          className="mb-4"
+          color="blue"
+        >
+          Volver a Órdenes de Producción
+        </Button>
+
         <Typography variant="h5" color="blue-gray" className="mb-4">
           Lista de Órdenes Producidas
         </Typography>
